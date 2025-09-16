@@ -1,8 +1,10 @@
+// server/src/index.js
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRouter from './routes/auth.js';
 import tasksRouter from './routes/tasks.js';
+import summariesRouter from './routes/summaries.js';
 import { connectToDatabase } from './db.js';
 
 dotenv.config();
@@ -20,6 +22,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/tasks', tasksRouter);
+app.use('/api/summaries', summariesRouter);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
@@ -36,5 +39,3 @@ connectToDatabase()
     console.error('Failed to connect to MongoDB', err);
     process.exit(1);
   });
-
-

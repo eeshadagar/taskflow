@@ -1,13 +1,14 @@
 import React from 'react';
-import { CheckSquare, Plus, BarChart3 } from 'lucide-react';
+import { CheckSquare, Plus, BarChart3, Sparkles } from 'lucide-react';
 import { TaskStats } from '../types';
 
 interface HeaderProps {
   stats: TaskStats;
   onNewTask: () => void;
+  onOpenSummary?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ stats, onNewTask }) => {
+export const Header: React.FC<HeaderProps> = ({ stats, onNewTask, onOpenSummary }) => {
   const completionRate = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0;
 
   return (
@@ -46,13 +47,26 @@ export const Header: React.FC<HeaderProps> = ({ stats, onNewTask }) => {
               )}
             </div>
 
-            <button
-              onClick={onNewTask}
-              className="bg-white text-blue-600 hover:bg-blue-50 px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
-            >
-              <Plus size={20} />
-              New Task
-            </button>
+            <div className="flex gap-2">
+              {onOpenSummary && (
+                <button
+                  onClick={onOpenSummary}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+                  title="Generate AI Summary"
+                >
+                  <Sparkles size={20} />
+                  <span className="hidden sm:inline">Summary</span>
+                </button>
+              )}
+              
+              <button
+                onClick={onNewTask}
+                className="bg-white text-blue-600 hover:bg-blue-50 px-6 py-3 rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+              >
+                <Plus size={20} />
+                New Task
+              </button>
+            </div>
           </div>
         </div>
 
