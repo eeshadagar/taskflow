@@ -38,7 +38,8 @@ export const generateTaskSummary = async (data: TaskSummaryData): Promise<string
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Updated model name for the current API
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const tasksText = data.completedTasks
       .map((task, index) => {
@@ -72,7 +73,19 @@ Focus on productivity insights and patterns if you notice any.
     return summary;
   } catch (error) {
     console.error('Error generating summary:', error);
-    throw new Error('Failed to generate task summary');
+    
+    // Provide more specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('API_KEY_INVALID')) {
+        throw new Error('Invalid Gemini API key. Please check your configuration.');
+      } else if (error.message.includes('QUOTA_EXCEEDED')) {
+        throw new Error('API quota exceeded. Please try again later.');
+      } else if (error.message.includes('models/') && error.message.includes('not found')) {
+        throw new Error('Model not available. Please check if gemini-1.5-flash is accessible with your API key.');
+      }
+    }
+    
+    throw new Error('Failed to generate task summary. Please try again.');
   }
 };
 
@@ -82,7 +95,8 @@ export const generateWeeklySummary = async (summaries: TaskSummary[]): Promise<s
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    // Updated model name for the current API
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const summariesText = summaries
       .map((summary, index) => `Day ${index + 1} (${summary.date}): ${summary.taskCount} tasks - ${summary.summary}`)

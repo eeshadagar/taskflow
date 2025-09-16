@@ -17,12 +17,14 @@ export const useTasks = () => {
         const { data } = await api.get('/api/tasks');
         const parsed = (data || []).map((task: any) => ({
           ...task,
+          id: task._id || task.id, // Use MongoDB _id as id
           createdAt: new Date(task.createdAt),
           updatedAt: new Date(task.updatedAt),
           dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
         }));
         setTasks(parsed);
-      } catch {
+      } catch (error) {
+        console.warn('Failed to load tasks from server, using local storage:', error);
         const savedTasks = localStorage.getItem(STORAGE_KEY);
         if (savedTasks) {
           try {
@@ -34,7 +36,7 @@ export const useTasks = () => {
             }));
             setTasks(parsedTasks);
           } catch (error) {
-            console.error('Error loading tasks:', error);
+            console.error('Error loading tasks from localStorage:', error);
           }
         }
       }
@@ -47,6 +49,15 @@ export const useTasks = () => {
   }, [tasks]);
 
   const addTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+    // Optimistically add task with temporary ID
+    const tempTask: Task = {
+      ...taskData,
+      id: generateId(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setTasks(prev => [tempTask, ...prev]);
+
     try {
       const payload = {
         ...taskData,
@@ -55,38 +66,86 @@ export const useTasks = () => {
       const { data } = await api.post('/api/tasks', payload);
       const normalized: Task = {
         ...data,
+        id: data._id || data.id, // Use MongoDB _id as id
         createdAt: new Date(data.createdAt),
         updatedAt: new Date(data.updatedAt),
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       };
-      setTasks(prev => [normalized, ...prev]);
-    } catch {
-      const newTask: Task = {
-        ...taskData,
-        id: generateId(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setTasks(prev => [newTask, ...prev]);
+      
+      // Replace temporary task with server response
+      setTasks(prev => prev.map(task => 
+        task.id === tempTask.id ? normalized : task
+      ));
+    } catch (error) {
+      console.warn('Failed to save task to server:', error);
+      // Keep the optimistically added task
     }
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(task => task.id === id ? { ...task, ...updates, updatedAt: new Date() } : task));
+    // Validate ID before making API call
+    if (!id || id === 'undefined') {
+      console.error('Invalid task ID for update:', id);
+      return;
+    }
+
+    // Optimistically update task
+    setTasks(prev => prev.map(task => 
+      task.id === id ? { ...task, ...updates, updatedAt: new Date() } : task
+    ));
+
     try {
       const payload: any = { ...updates };
-      if (updates.dueDate instanceof Date) payload.dueDate = updates.dueDate.toISOString();
+      if (updates.dueDate instanceof Date) {
+        payload.dueDate = updates.dueDate.toISOString();
+      }
       await api.put(`/api/tasks/${id}`, payload);
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to update task on server:', error);
+      // Revert optimistic update on error
+      setTasks(prev => prev.map(task => {
+        if (task.id === id) {
+          // Remove the optimistic updates
+          const { ...taskWithoutUpdates } = task;
+          Object.keys(updates).forEach(key => {
+            if (key !== 'updatedAt') {
+              delete taskWithoutUpdates[key as keyof Task];
+            }
+          });
+          return taskWithoutUpdates;
+        }
+        return task;
+      }));
+    }
   };
 
   const deleteTask = async (id: string) => {
+    // Validate ID before making API call
+    if (!id || id === 'undefined') {
+      console.error('Invalid task ID for deletion:', id);
+      return;
+    }
+
+    // Optimistically remove task
+    const taskToDelete = tasks.find(t => t.id === id);
     setTasks(prev => prev.filter(task => task.id !== id));
-    try { await api.delete(`/api/tasks/${id}`); } catch {}
+
+    try {
+      await api.delete(`/api/tasks/${id}`);
+    } catch (error) {
+      console.warn('Failed to delete task from server:', error);
+      // Restore task on error
+      if (taskToDelete) {
+        setTasks(prev => [taskToDelete, ...prev]);
+      }
+    }
   };
 
   const toggleTask = (id: string) => {
-    updateTask(id, { completed: !tasks.find(t => t.id === id)?.completed });
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+      updateTask(id, { completed: !task.completed });
+    }
   };
 
   const filteredTasks = tasks.filter(task => {
